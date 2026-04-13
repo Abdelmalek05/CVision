@@ -1,5 +1,5 @@
 import type { Route } from "./+types/home";
-import Navbar from "~/components/navbar.js";
+import Navbar from "~/components/Navbar";
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "Resumind" },
@@ -7,7 +7,7 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 import { resumes } from "../../constants";
-import ResumeCard from "~/components/resumeCard";
+import ResumeCard from "~/components/ResumeCard";
 
 export default function Home() {
   return (
