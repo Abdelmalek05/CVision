@@ -1,24 +1,35 @@
-# Welcome to React Router!
+# AI Resume Analyzer
 
-A modern, production-ready template for building full-stack React applications using React Router.
+An intelligent web application that helps users analyze and improve their resumes using AI. Built with real-time feedback, PDF parsing capabilities, and state-of-the-art UI.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+**Live Demo**: [https://jsm-ai-resume-analyzer-82-ls5u8.puter.site/](https://jsm-ai-resume-analyzer-82-ls5u8.puter.site/)
 
 ## Features
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+- **Resume Upload**: Easily upload your resume via a drag-and-drop interface (`react-dropzone`).
+- **PDF Extraction**: Extracts text directly from your resume securely in the browser using `pdfjs-dist`.
+- **AI Analysis**: Get instantaneous, actionable feedback tailored to your resume's content.
+- **Modern UI**: Polished, responsive design utilizing TailwindCSS.
+- **Fast Navigation**: Fluid user experience managed by React Router v7 and Zustand for efficient state management.
+- **Client & Server Integration**: Full-stack capabilities utilizing React Router's modern architecture.
+
+## Tech Stack
+
+- **Framework**: [React Router v7](https://reactrouter.com/) (formerly Remix)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+- **State Management**: [Zustand](https://zustand-demo.pmnd.rs/)
+- **PDF Processing**: `pdfjs-dist`
+- **TypeScript**: First-class support for end-to-end type safety.
 
 ## Getting Started
 
+### Prerequisites
+
+Ensure you have Node.js (v22 or later) and npm installed.
+
 ### Installation
 
-Install the dependencies:
+Clone the repository and install the dependencies:
 
 ```bash
 npm install
@@ -26,7 +37,7 @@ npm install
 
 ### Development
 
-Start the development server with HMR:
+Start the development server with Hot Module Replacement (HMR):
 
 ```bash
 npm run dev
@@ -36,53 +47,43 @@ Your application will be available at `http://localhost:5173`.
 
 ## Building for Production
 
-Create a production build:
+Create a production-ready optimized build:
 
 ```bash
 npm run build
 ```
 
-## Deployment
-
-### Docker Deployment
-
-To build and run using Docker:
+To run the production server:
 
 ```bash
-docker build -t my-app .
+npm run start
+```
+
+## Docker Deployment
+
+This application includes a `Dockerfile` for easy containerization.
+
+```bash
+# Build the Docker image
+docker build -t ai-resume-analyzer .
 
 # Run the container
-docker run -p 3000:3000 my-app
+docker run -p 3000:3000 ai-resume-analyzer
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
+## Project Structure
 
 ```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
+├── app/
+│   ├── components/  # Reusable UI components
+│   ├── lib/         # Utility functions and shared logic
+│   ├── routes/      # Application routes (upload, resume feedback, auth, etc.)
+│   └── root.tsx     # Root entry point
+├── public/          # Static assets
+└── build/           # Compiled server and client build files
 ```
 
-## Styling
+## License
 
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
+This project is licensed under the MIT License.
 
----
-
-Built with ❤️ using React Router.
-"# ai-resume-analyzer" 
