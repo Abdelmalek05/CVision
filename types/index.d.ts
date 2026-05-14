@@ -9,9 +9,13 @@ interface Resume {
   id: string;
   companyName?: string;
   jobTitle?: string;
+  jobDescription?: string;
   imagePath: string;
   resumePath: string;
-  feedback: Feedback;
+  // `feedback` can be the parsed Feedback object, an empty string (ghost record from a
+  // failed analysis), or a JSON string (legacy records). Consumers must defensively
+  // narrow before using.
+  feedback?: Feedback | string;
 }
 
 interface Feedback {

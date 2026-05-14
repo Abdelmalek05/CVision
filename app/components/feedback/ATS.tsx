@@ -41,7 +41,7 @@ const ATS = ({
           performed:
         </p>
         {suggestions.map((suggestion, index) => (
-          <div className="flex flex-row gap-2 items-center" key={index}>
+          <div className="flex flex-row gap-2 items-center" key={`${suggestion.type}-${index}-${suggestion.tip}`}>
             <img
               src={
                 suggestion.type === "good"

@@ -9,7 +9,7 @@ export default function Protected() {
 
     useEffect(() => {
         if (!isLoading && !auth.isAuthenticated) {
-            const next = `${location.pathname}${location.search}`;
+            const next = encodeURIComponent(`${location.pathname}${location.search}`);
             navigate(`/auth?next=${next}`);
         }
     }, [isLoading, auth.isAuthenticated, location.pathname, location.search]);

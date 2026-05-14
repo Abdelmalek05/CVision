@@ -120,23 +120,7 @@ const Upload = () => {
                 <div className="page-heading py-16">
                     <h1>Smart feedback for your dream job</h1>
 
-                    {error ? (
-                        <div className="mt-8 max-w-xl mx-auto bg-red-50 border border-red-200 rounded-2xl p-6 flex flex-col gap-4">
-                            <div>
-                                <h2 className="text-xl font-semibold text-red-800">Something went wrong</h2>
-                                <p className="text-red-700 mt-2">{error}</p>
-                            </div>
-                            <div className="flex gap-3">
-                                <button
-                                    type="button"
-                                    onClick={resetAfterError}
-                                    className="primary-button w-fit"
-                                >
-                                    Try again
-                                </button>
-                            </div>
-                        </div>
-                    ) : isProcessing ? (
+                    {isProcessing ? (
                         <>
                             <h2>{statusText}</h2>
                             <img src="/images/resume-scan.gif" className="w-full" />
@@ -145,7 +129,23 @@ const Upload = () => {
                         <h2>Drop your resume for an ATS score and improvement tips</h2>
                     )}
 
-                    {!isProcessing && !error && (
+                    {error && !isProcessing && (
+                        <div className="mt-8 max-w-xl mx-auto bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start justify-between gap-3">
+                            <div>
+                                <p className="font-semibold text-red-800">Something went wrong</p>
+                                <p className="text-red-700 text-sm mt-1">{error}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={resetAfterError}
+                                className="text-red-700 hover:text-red-900 text-sm font-medium cursor-pointer whitespace-nowrap"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    )}
+
+                    {!isProcessing && (
                         <form id="upload-form" onSubmit={handleSubmit} className="flex flex-col gap-4 mt-8">
                             <div className="form-div">
                                 <label htmlFor="company-name">Company Name</label>

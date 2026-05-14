@@ -47,22 +47,26 @@ const ConfirmDialog = ({
 }: ConfirmDialogProps) => {
     const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
+    // Body scroll lock + focus — only depends on `open` so it doesn't churn on every
+    // isProcessing/onCancel change.
     useEffect(() => {
         if (!open) return;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        confirmButtonRef.current?.focus();
+        return () => {
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [open]);
 
+    // Esc-to-close — separate effect because it legitimately depends on isProcessing/onCancel.
+    useEffect(() => {
+        if (!open) return;
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape" && !isProcessing) onCancel();
         };
         window.addEventListener("keydown", onKey);
-
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
-        confirmButtonRef.current?.focus();
-
-        return () => {
-            window.removeEventListener("keydown", onKey);
-            document.body.style.overflow = previousOverflow;
-        };
+        return () => window.removeEventListener("keydown", onKey);
     }, [open, isProcessing, onCancel]);
 
     if (!open) return null;

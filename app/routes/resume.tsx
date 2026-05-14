@@ -35,33 +35,47 @@ const Resume = () => {
     const [reanalyzeError, setReanalyzeError] = useState<string | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
+        const createdUrls: string[] = [];
+
         const loadResume = async () => {
             try {
-                // KV can be briefly stale right after redirect; retry a few times
+                // KV can be briefly stale right after a fresh upload's redirect; retry only
+                // while `feedback` is still empty (the legitimate stale-write window).
+                // If `feedback` is already populated but can't be normalized, that's a
+                // permanent failure — no point looping.
                 const maxAttempts = 8;
                 const attemptDelayMs = 400;
 
                 for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    if (cancelled) return;
+
                     const resume = await kv.get(`resume:${id}`);
-                    if(!resume) return;
+                    if (!resume) return;
 
                     const data = JSON.parse(resume) as StoredResume;
+                    if (cancelled) return;
                     setStoredResume(data);
 
                     const resumeBlob = await fs.read(data.resumePath);
+                    if (cancelled) return;
                     if (resumeBlob) {
                         const pdfBlob = new Blob([resumeBlob], { type: 'application/pdf' });
-                        setResumeUrl(URL.createObjectURL(pdfBlob));
+                        const url = URL.createObjectURL(pdfBlob);
+                        createdUrls.push(url);
+                        setResumeUrl(url);
                     }
 
                     const imageBlob = await fs.read(data.imagePath);
+                    if (cancelled) return;
                     if (imageBlob) {
-                        setImageUrl(URL.createObjectURL(imageBlob));
+                        const url = URL.createObjectURL(imageBlob);
+                        createdUrls.push(url);
+                        setImageUrl(url);
                     }
 
-                    // feedback might be stored either as an object or as a JSON string
                     let loadedFeedback: unknown = data.feedback;
-                    if(typeof loadedFeedback === 'string' && loadedFeedback.trim().length) {
+                    if (typeof loadedFeedback === 'string' && loadedFeedback.trim().length) {
                         try { loadedFeedback = JSON.parse(loadedFeedback); } catch { /* ignore */ }
                     }
 
@@ -71,15 +85,31 @@ const Resume = () => {
                         return;
                     }
 
-                    // If analysis isn't ready yet, wait and retry
+                    const feedbackHasContent =
+                        loadedFeedback !== null &&
+                        loadedFeedback !== undefined &&
+                        loadedFeedback !== '' &&
+                        (typeof loadedFeedback !== 'object' ||
+                            Object.keys(loadedFeedback as object).length > 0);
+
+                    if (feedbackHasContent) {
+                        // Data is settled but unparseable — surface the re-analyze UI immediately.
+                        return;
+                    }
+
                     await new Promise((r) => setTimeout(r, attemptDelayMs));
                 }
             } finally {
-                setHasLoaded(true);
+                if (!cancelled) setHasLoaded(true);
             }
         }
 
         loadResume();
+
+        return () => {
+            cancelled = true;
+            for (const url of createdUrls) URL.revokeObjectURL(url);
+        };
     }, [id]);
 
     const handleReanalyze = async () => {

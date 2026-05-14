@@ -13,15 +13,28 @@ const ResumeCard = ({ resume: { id, companyName, jobTitle, feedback, imagePath }
     const { fs } = usePuterStore();
     const [resumeUrl, setResumeUrl] = useState('');
 
+    const overallScore =
+        typeof feedback === "object" && feedback !== null && typeof feedback.overallScore === "number"
+            ? feedback.overallScore
+            : 0;
+
     useEffect(() => {
+        let createdUrl: string | null = null;
+        let cancelled = false;
+
         const loadResume = async () => {
             const blob = await fs.read(imagePath);
-            if(!blob) return;
-            let url = URL.createObjectURL(blob);
-            setResumeUrl(url);
+            if (!blob || cancelled) return;
+            createdUrl = URL.createObjectURL(blob);
+            setResumeUrl(createdUrl);
         }
 
         loadResume();
+
+        return () => {
+            cancelled = true;
+            if (createdUrl) URL.revokeObjectURL(createdUrl);
+        };
     }, [imagePath]);
 
     const handleDeleteClick = (e: MouseEvent<HTMLButtonElement>) => {
@@ -67,7 +80,7 @@ const ResumeCard = ({ resume: { id, companyName, jobTitle, feedback, imagePath }
                     {!companyName && !jobTitle && <h2 className="!text-black font-bold">Resume</h2>}
                 </div>
                 <div className="flex-shrink-0">
-                    <ScoreCircle score={feedback.overallScore} />
+                    <ScoreCircle score={overallScore} />
                 </div>
             </div>
             {resumeUrl && (

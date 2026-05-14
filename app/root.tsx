@@ -34,6 +34,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
+        {/*
+          Supply-chain note: this loads Puter.js v2 from their CDN without an SRI integrity
+          hash. SRI requires pinning to a specific build whose hash we know; Puter's v2 URL
+          is a rolling pointer, so adding `integrity` would break on every Puter release.
+          If/when Puter publishes versioned URLs (e.g. v2.1.3) with documented hashes,
+          add `integrity="sha384-..."` and `crossOrigin="anonymous"`.
+        */}
         <script src="https://js.puter.com/v2/"></script>
         {children}
         <ScrollRestoration />
