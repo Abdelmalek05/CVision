@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
 import { usePuterStore } from "~/lib/puter";
 
 interface AppResumeRecord {
@@ -12,7 +11,6 @@ interface AppResumeRecord {
 
 const WipeApp = () => {
     const { auth, isLoading, error, fs, kv } = usePuterStore();
-    const navigate = useNavigate();
     const [records, setRecords] = useState<AppResumeRecord[]>([]);
     const [confirming, setConfirming] = useState(false);
     const [isWiping, setIsWiping] = useState(false);
@@ -42,12 +40,6 @@ const WipeApp = () => {
     useEffect(() => {
         loadRecords();
     }, []);
-
-    useEffect(() => {
-        if (!isLoading && !auth.isAuthenticated) {
-            navigate("/auth?next=/wipe");
-        }
-    }, [isLoading]);
 
     const handleDelete = async () => {
         setIsWiping(true);

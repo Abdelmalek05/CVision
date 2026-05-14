@@ -1,6 +1,7 @@
-import {Link, useNavigate, useParams} from "react-router";
+import {Link, useParams} from "react-router";
 import {useEffect, useState} from "react";
 import {usePuterStore} from "~/lib/puter";
+import {normalizeFeedback} from "~/lib/feedback";
 import Summary from "~/components/feedback/Summary";
 import ATS from "~/components/feedback/ATS";
 import Details from "~/components/feedback/Details";
@@ -11,94 +12,12 @@ export const meta = () => ([
 ])
 
 const Resume = () => {
-    const { auth, isLoading, fs, kv } = usePuterStore();
+    const { fs, kv } = usePuterStore();
     const { id } = useParams();
     const [imageUrl, setImageUrl] = useState('');
     const [resumeUrl, setResumeUrl] = useState('');
     const [feedback, setFeedback] = useState<Feedback | null>(null);
     const [hasLoaded, setHasLoaded] = useState(false);
-    const navigate = useNavigate();
-
-    const coerceNumber = (value: unknown, fallback = 0) => {
-        if (typeof value === 'number' && Number.isFinite(value)) return value;
-        if (typeof value === 'string' && value.trim().length) {
-            const n = Number(value);
-            if (Number.isFinite(n)) return n;
-        }
-        return fallback;
-    };
-
-    const normalizeFeedback = (value: unknown): Feedback | null => {
-        if(!value || typeof value !== 'object') return null;
-        const v: any = value;
-
-        const normalizeATSTips = (tips: unknown): Feedback['ATS']['tips'] => {
-            if(!Array.isArray(tips)) return [];
-            return tips
-                .map((t) => {
-                    const type: "good" | "improve" = t?.type === 'good' ? 'good' : 'improve';
-                    const tip = typeof t?.tip === 'string' ? t.tip : '';
-                    return { type, tip };
-                })
-                .filter((t) => t.tip.length > 0);
-        };
-
-        const normalizeTips = (
-            tips: unknown
-        ): Feedback['toneAndStyle']['tips'] => {
-            if(!Array.isArray(tips)) return [];
-            return tips
-                .map((t) => {
-                    const type: "good" | "improve" = t?.type === 'good' ? 'good' : 'improve';
-                    const tip = typeof t?.tip === 'string' ? t.tip : '';
-                    const explanation = typeof t?.explanation === 'string' ? t.explanation : '';
-                    return { type, tip, explanation };
-                })
-                .filter((t) => t.tip.length > 0);
-        };
-
-        // Accept a few common variants from LLMs (ATS/ats)
-        const ats = v.ATS ?? v.ats ?? {};
-
-        const normalized: Feedback = {
-            overallScore: coerceNumber(v.overallScore),
-            ATS: {
-                score: coerceNumber(ats.score),
-                tips: normalizeATSTips(ats.tips),
-            },
-            toneAndStyle: {
-                score: coerceNumber(v.toneAndStyle?.score),
-                tips: normalizeTips(v.toneAndStyle?.tips),
-            },
-            content: {
-                score: coerceNumber(v.content?.score),
-                tips: normalizeTips(v.content?.tips),
-            },
-            structure: {
-                score: coerceNumber(v.structure?.score),
-                tips: normalizeTips(v.structure?.tips),
-            },
-            skills: {
-                score: coerceNumber(v.skills?.score),
-                tips: normalizeTips(v.skills?.tips),
-            },
-        };
-
-        // If it still looks empty, treat as invalid
-        const hasAnyScore =
-            normalized.overallScore > 0 ||
-            normalized.ATS.score > 0 ||
-            normalized.toneAndStyle.score > 0 ||
-            normalized.content.score > 0 ||
-            normalized.structure.score > 0 ||
-            normalized.skills.score > 0;
-
-        return hasAnyScore ? normalized : null;
-    };
-
-    useEffect(() => {
-        if(!isLoading && !auth.isAuthenticated) navigate(`/auth?next=/resume/${id}`);
-    }, [isLoading])
 
     useEffect(() => {
         const loadResume = async () => {

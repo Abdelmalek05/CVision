@@ -5,37 +5,62 @@ import {usePuterStore} from "~/lib/puter";
 import {useNavigate} from "react-router";
 import {convertPdfToImage} from "~/lib/pdf2img";
 import {generateUUID} from "~/lib/utils";
-import {prepareInstructions, AIResponseFormat} from "../../constants";
+import {parseFeedbackResponse} from "~/lib/feedback";
+import {prepareInstructions} from "../../constants";
 
 const Upload = () => {
-    const { auth, isLoading, fs, ai, kv } = usePuterStore();
+    const { fs, ai, kv } = usePuterStore();
     const navigate = useNavigate();
     const [isProcessing, setIsProcessing] = useState(false);
     const [statusText, setStatusText] = useState('');
+    const [error, setError] = useState<string | null>(null);
     const [file, setFile] = useState<File | null>(null);
 
     const handleFileSelect = (file: File | null) => {
         setFile(file)
     }
 
+    const fail = (message: string) => {
+        setError(message);
+        setIsProcessing(false);
+        setStatusText('');
+    };
+
+    const resetAfterError = () => {
+        setError(null);
+        setIsProcessing(false);
+        setStatusText('');
+    };
+
+    const extractFeedbackText = (response: any): string => {
+        const content = response?.message?.content;
+        if (typeof content === 'string') return content;
+        if (Array.isArray(content)) {
+            const textPart = content.find((c: any) => typeof c?.text === 'string');
+            return textPart?.text ?? '';
+        }
+        return '';
+    };
+
     const handleAnalyze = async ({ companyName, jobTitle, jobDescription, file }: { companyName: string, jobTitle: string, jobDescription: string, file: File  }) => {
+        setError(null);
         setIsProcessing(true);
 
         setStatusText('Uploading the file...');
         const uploadedFile = await fs.upload([file]);
-        if(!uploadedFile) return setStatusText('Error: Failed to upload file');
+        if(!uploadedFile) return fail('Failed to upload your resume. Check your connection and try again.');
 
         setStatusText('Converting to image...');
         const imageFile = await convertPdfToImage(file);
-        if(!imageFile.file) return setStatusText(`Error: Failed to convert PDF to image${imageFile.error ? ` (${imageFile.error})` : ''}`);
+        if(!imageFile.file) return fail(`Could not render your PDF${imageFile.error ? ` (${imageFile.error})` : ''}. Make sure the file isn't corrupt or password-protected.`);
 
         setStatusText('Uploading the image...');
         const uploadedImage = await fs.upload([imageFile.file]);
-        if(!uploadedImage) return setStatusText('Error: Failed to upload image');
+        if(!uploadedImage) return fail('Failed to upload the resume preview image. Try again.');
 
         setStatusText('Preparing data...');
         const uuid = generateUUID();
-        const data = {
+        const data: any = {
             id: uuid,
             resumePath: uploadedFile.path,
             imagePath: uploadedImage.path,
@@ -44,24 +69,34 @@ const Upload = () => {
         }
         await kv.set(`resume:${uuid}`, JSON.stringify(data));
 
-        setStatusText('Analyzing...');
+        setStatusText('Analyzing your resume...');
 
-        const feedback = await ai.feedback(
+        let response = await ai.feedback(
             uploadedFile.path,
-            prepareInstructions({ jobTitle, jobDescription, AIResponseFormat })
-        )
-        if (!feedback) return setStatusText('Error: Failed to analyze resume');
+            prepareInstructions({ jobTitle, jobDescription })
+        );
+        if (!response) return fail('The AI analyzer did not respond. Try again in a moment.');
 
-        let feedbackText = typeof feedback.message.content === 'string'
-            ? feedback.message.content
-            : feedback.message.content[0].text;
-            
-        feedbackText = feedbackText.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+        let feedback = parseFeedbackResponse(extractFeedbackText(response));
 
-        data.feedback = JSON.parse(feedbackText);
+        if (!feedback) {
+            setStatusText('Retrying with stricter format...');
+            response = await ai.feedback(
+                uploadedFile.path,
+                prepareInstructions({ jobTitle, jobDescription, strict: true })
+            );
+            if (response) {
+                feedback = parseFeedbackResponse(extractFeedbackText(response));
+            }
+        }
+
+        if (!feedback) {
+            return fail('The AI returned a response we could not parse, even after a retry. Please try again — sometimes a fresh attempt produces cleaner output.');
+        }
+
+        data.feedback = feedback;
         await kv.set(`resume:${uuid}`, JSON.stringify(data));
         setStatusText('Analysis complete, redirecting...');
-        console.log(data);
         navigate(`/resume/${uuid}`);
     }
 
@@ -87,7 +122,24 @@ const Upload = () => {
             <section className="main-section">
                 <div className="page-heading py-16">
                     <h1>Smart feedback for your dream job</h1>
-                    {isProcessing ? (
+
+                    {error ? (
+                        <div className="mt-8 max-w-xl mx-auto bg-red-50 border border-red-200 rounded-2xl p-6 flex flex-col gap-4">
+                            <div>
+                                <h2 className="text-xl font-semibold text-red-800">Something went wrong</h2>
+                                <p className="text-red-700 mt-2">{error}</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={resetAfterError}
+                                    className="primary-button w-fit"
+                                >
+                                    Try again
+                                </button>
+                            </div>
+                        </div>
+                    ) : isProcessing ? (
                         <>
                             <h2>{statusText}</h2>
                             <img src="/images/resume-scan.gif" className="w-full" />
@@ -95,7 +147,8 @@ const Upload = () => {
                     ) : (
                         <h2>Drop your resume for an ATS score and improvement tips</h2>
                     )}
-                    {!isProcessing && (
+
+                    {!isProcessing && !error && (
                         <form id="upload-form" onSubmit={handleSubmit} className="flex flex-col gap-4 mt-8">
                             <div className="form-div">
                                 <label htmlFor="company-name">Company Name</label>

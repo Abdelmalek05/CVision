@@ -3,7 +3,7 @@ import Navbar from "~/components/Navbar";
 import ResumeCard from "~/components/ResumeCard";
 import ConfirmDialog from "~/components/ConfirmDialog";
 import {usePuterStore} from "~/lib/puter";
-import {Link, useNavigate} from "react-router";
+import {Link} from "react-router";
 import {useEffect, useState} from "react";
 
 export function meta({}: Route.MetaArgs) {
@@ -14,18 +14,13 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
-  const { auth, fs, kv } = usePuterStore();
-  const navigate = useNavigate();
+  const { fs, kv } = usePuterStore();
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [resumeKeys, setResumeKeys] = useState<Record<string, string>>({});
   const [loadingResumes, setLoadingResumes] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if(!auth.isAuthenticated) navigate('/auth?next=/');
-  }, [auth.isAuthenticated])
 
   useEffect(() => {
     const loadResumes = async () => {
