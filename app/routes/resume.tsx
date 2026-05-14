@@ -1,9 +1,21 @@
-import {Link, useNavigate, useParams} from "react-router";
+import {Link, useParams} from "react-router";
 import {useEffect, useState} from "react";
 import {usePuterStore} from "~/lib/puter";
+import {normalizeFeedback, parseFeedbackResponse, extractFeedbackText} from "~/lib/feedback";
+import {prepareInstructions} from "../../constants";
 import Summary from "~/components/feedback/Summary";
 import ATS from "~/components/feedback/ATS";
 import Details from "~/components/feedback/Details";
+
+interface StoredResume {
+    id: string;
+    resumePath: string;
+    imagePath: string;
+    companyName?: string;
+    jobTitle?: string;
+    jobDescription?: string;
+    feedback: unknown;
+}
 
 export const meta = () => ([
     { title: 'Resumind | Review ' },
@@ -11,145 +23,150 @@ export const meta = () => ([
 ])
 
 const Resume = () => {
-    const { auth, isLoading, fs, kv } = usePuterStore();
+    const { fs, kv, ai } = usePuterStore();
     const { id } = useParams();
     const [imageUrl, setImageUrl] = useState('');
     const [resumeUrl, setResumeUrl] = useState('');
     const [feedback, setFeedback] = useState<Feedback | null>(null);
     const [hasLoaded, setHasLoaded] = useState(false);
-    const navigate = useNavigate();
-
-    const coerceNumber = (value: unknown, fallback = 0) => {
-        if (typeof value === 'number' && Number.isFinite(value)) return value;
-        if (typeof value === 'string' && value.trim().length) {
-            const n = Number(value);
-            if (Number.isFinite(n)) return n;
-        }
-        return fallback;
-    };
-
-    const normalizeFeedback = (value: unknown): Feedback | null => {
-        if(!value || typeof value !== 'object') return null;
-        const v: any = value;
-
-        const normalizeATSTips = (tips: unknown): Feedback['ATS']['tips'] => {
-            if(!Array.isArray(tips)) return [];
-            return tips
-                .map((t) => {
-                    const type: "good" | "improve" = t?.type === 'good' ? 'good' : 'improve';
-                    const tip = typeof t?.tip === 'string' ? t.tip : '';
-                    return { type, tip };
-                })
-                .filter((t) => t.tip.length > 0);
-        };
-
-        const normalizeTips = (
-            tips: unknown
-        ): Feedback['toneAndStyle']['tips'] => {
-            if(!Array.isArray(tips)) return [];
-            return tips
-                .map((t) => {
-                    const type: "good" | "improve" = t?.type === 'good' ? 'good' : 'improve';
-                    const tip = typeof t?.tip === 'string' ? t.tip : '';
-                    const explanation = typeof t?.explanation === 'string' ? t.explanation : '';
-                    return { type, tip, explanation };
-                })
-                .filter((t) => t.tip.length > 0);
-        };
-
-        // Accept a few common variants from LLMs (ATS/ats)
-        const ats = v.ATS ?? v.ats ?? {};
-
-        const normalized: Feedback = {
-            overallScore: coerceNumber(v.overallScore),
-            ATS: {
-                score: coerceNumber(ats.score),
-                tips: normalizeATSTips(ats.tips),
-            },
-            toneAndStyle: {
-                score: coerceNumber(v.toneAndStyle?.score),
-                tips: normalizeTips(v.toneAndStyle?.tips),
-            },
-            content: {
-                score: coerceNumber(v.content?.score),
-                tips: normalizeTips(v.content?.tips),
-            },
-            structure: {
-                score: coerceNumber(v.structure?.score),
-                tips: normalizeTips(v.structure?.tips),
-            },
-            skills: {
-                score: coerceNumber(v.skills?.score),
-                tips: normalizeTips(v.skills?.tips),
-            },
-        };
-
-        // If it still looks empty, treat as invalid
-        const hasAnyScore =
-            normalized.overallScore > 0 ||
-            normalized.ATS.score > 0 ||
-            normalized.toneAndStyle.score > 0 ||
-            normalized.content.score > 0 ||
-            normalized.structure.score > 0 ||
-            normalized.skills.score > 0;
-
-        return hasAnyScore ? normalized : null;
-    };
+    const [storedResume, setStoredResume] = useState<StoredResume | null>(null);
+    const [reanalyzing, setReanalyzing] = useState(false);
+    const [reanalyzeStatus, setReanalyzeStatus] = useState<string | null>(null);
+    const [reanalyzeError, setReanalyzeError] = useState<string | null>(null);
 
     useEffect(() => {
-        if(!isLoading && !auth.isAuthenticated) navigate(`/auth?next=/resume/${id}`);
-    }, [isLoading])
+        let cancelled = false;
+        const createdUrls: string[] = [];
 
-    useEffect(() => {
         const loadResume = async () => {
             try {
-                // KV can be briefly stale right after redirect; retry a few times
+                // KV can be briefly stale right after a fresh upload's redirect; retry only
+                // while `feedback` is still empty (the legitimate stale-write window).
+                // If `feedback` is already populated but can't be normalized, that's a
+                // permanent failure — no point looping.
                 const maxAttempts = 8;
                 const attemptDelayMs = 400;
 
                 for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                    const resume = await kv.get(`resume:${id}`);
-                    if(!resume) return;
+                    if (cancelled) return;
 
-                    const data = JSON.parse(resume);
+                    const resume = await kv.get(`resume:${id}`);
+                    if (!resume) return;
+
+                    const data = JSON.parse(resume) as StoredResume;
+                    if (cancelled) return;
+                    setStoredResume(data);
 
                     const resumeBlob = await fs.read(data.resumePath);
-                    if(!resumeBlob) return;
-
-                    const pdfBlob = new Blob([resumeBlob], { type: 'application/pdf' });
-                    const resumeUrl = URL.createObjectURL(pdfBlob);
-                    setResumeUrl(resumeUrl);
+                    if (cancelled) return;
+                    if (resumeBlob) {
+                        const pdfBlob = new Blob([resumeBlob], { type: 'application/pdf' });
+                        const url = URL.createObjectURL(pdfBlob);
+                        createdUrls.push(url);
+                        setResumeUrl(url);
+                    }
 
                     const imageBlob = await fs.read(data.imagePath);
-                    if(!imageBlob) return;
-                    const imageUrl = URL.createObjectURL(imageBlob);
-                    setImageUrl(imageUrl);
+                    if (cancelled) return;
+                    if (imageBlob) {
+                        const url = URL.createObjectURL(imageBlob);
+                        createdUrls.push(url);
+                        setImageUrl(url);
+                    }
 
-                    // feedback might be stored either as an object or as a JSON string
                     let loadedFeedback: unknown = data.feedback;
-                    if(typeof loadedFeedback === 'string' && loadedFeedback.trim().length) {
+                    if (typeof loadedFeedback === 'string' && loadedFeedback.trim().length) {
                         try { loadedFeedback = JSON.parse(loadedFeedback); } catch { /* ignore */ }
                     }
 
                     const normalized = normalizeFeedback(loadedFeedback);
                     if (normalized) {
                         setFeedback(normalized);
-                        console.log({resumeUrl, imageUrl, feedback: loadedFeedback });
                         return;
                     }
 
-                    // If analysis isn't ready yet, wait and retry
+                    const feedbackHasContent =
+                        loadedFeedback !== null &&
+                        loadedFeedback !== undefined &&
+                        loadedFeedback !== '' &&
+                        (typeof loadedFeedback !== 'object' ||
+                            Object.keys(loadedFeedback as object).length > 0);
+
+                    if (feedbackHasContent) {
+                        // Data is settled but unparseable — surface the re-analyze UI immediately.
+                        return;
+                    }
+
                     await new Promise((r) => setTimeout(r, attemptDelayMs));
                 }
             } finally {
-                setHasLoaded(true);
+                if (!cancelled) setHasLoaded(true);
             }
         }
 
         loadResume();
+
+        return () => {
+            cancelled = true;
+            for (const url of createdUrls) URL.revokeObjectURL(url);
+        };
     }, [id]);
 
+    const handleReanalyze = async () => {
+        if (!storedResume || !id) return;
+        setReanalyzing(true);
+        setReanalyzeError(null);
+        setReanalyzeStatus('Checking the stored resume file...');
+
+        const pdfBlob = await fs.read(storedResume.resumePath);
+        if (!pdfBlob) {
+            setReanalyzing(false);
+            setReanalyzeStatus(null);
+            setReanalyzeError(`The original PDF (${storedResume.resumePath}) is no longer in storage, so we can't re-analyze it. You'll need to upload it again.`);
+            return;
+        }
+
+        setReanalyzeStatus('Running the AI analysis...');
+        let response = await ai.feedback(
+            storedResume.resumePath,
+            prepareInstructions({
+                jobTitle: storedResume.jobTitle || '',
+                jobDescription: storedResume.jobDescription || '',
+            })
+        );
+        let newFeedback = response ? parseFeedbackResponse(extractFeedbackText(response)) : null;
+
+        if (!newFeedback) {
+            setReanalyzeStatus('Retrying with stricter format...');
+            response = await ai.feedback(
+                storedResume.resumePath,
+                prepareInstructions({
+                    jobTitle: storedResume.jobTitle || '',
+                    jobDescription: storedResume.jobDescription || '',
+                    strict: true,
+                })
+            );
+            newFeedback = response ? parseFeedbackResponse(extractFeedbackText(response)) : null;
+        }
+
+        if (!newFeedback) {
+            setReanalyzing(false);
+            setReanalyzeStatus(null);
+            setReanalyzeError('The AI returned a response we could not parse, even after a retry. Try again in a moment.');
+            return;
+        }
+
+        setReanalyzeStatus('Saving updated feedback...');
+        const updated: StoredResume = { ...storedResume, feedback: newFeedback };
+        await kv.set(`resume:${id}`, JSON.stringify(updated));
+        setStoredResume(updated);
+        setFeedback(newFeedback);
+        setReanalyzing(false);
+        setReanalyzeStatus(null);
+    };
+
     const showIncompleteFeedbackState = hasLoaded && !feedback;
+    const canReanalyze = Boolean(storedResume?.resumePath);
 
     return (
         <main className="!pt-0">
@@ -160,7 +177,7 @@ const Resume = () => {
                 </Link>
             </nav>
             <div className="flex flex-row w-full max-lg:flex-col-reverse">
-                <section className="feedback-section bg-[url('/images/bg-small.svg') bg-cover h-[100vh] sticky top-0 items-center justify-center">
+                <section className="feedback-section bg-[url('/images/bg-small.svg')] bg-cover h-[100vh] sticky top-0 items-center justify-center">
                     {imageUrl && resumeUrl && (
                         <div className="animate-in fade-in duration-1000 gradient-border max-sm:m-0 h-[90%] max-wxl:h-fit w-fit">
                             <a href={resumeUrl} target="_blank" rel="noopener noreferrer">
@@ -182,14 +199,33 @@ const Resume = () => {
                             <Details feedback={feedback} />
                         </div>
                     ) : showIncompleteFeedbackState ? (
-                        <div className="bg-white rounded-2xl shadow-md w-full p-6 mt-6">
-                            <p className="text-xl font-semibold text-gray-900">We couldn&apos;t load your feedback.</p>
-                            <p className="text-gray-600 mt-2">
-                                This usually happens if the analysis result wasn&apos;t saved correctly or the stored data is incomplete.
-                                Please go back and analyze again.
-                            </p>
-                            <div className="mt-4">
-                                <Link to="/upload" className="primary-button inline-block">Analyze another resume</Link>
+                        <div className="bg-white rounded-2xl shadow-md w-full p-6 mt-6 flex flex-col gap-4">
+                            <div>
+                                <p className="text-xl font-semibold text-gray-900">The feedback for this resume is missing or incomplete.</p>
+                                <p className="text-gray-600 mt-2">
+                                    The original PDF is still saved. Click below to re-run the AI analysis on it — your existing record will be updated in place.
+                                </p>
+                            </div>
+                            {reanalyzeStatus && <p className="text-gray-700 text-sm">{reanalyzeStatus}</p>}
+                            {reanalyzeError && (
+                                <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 text-sm">
+                                    {reanalyzeError}
+                                </div>
+                            )}
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                {canReanalyze && (
+                                    <button
+                                        type="button"
+                                        onClick={handleReanalyze}
+                                        disabled={reanalyzing}
+                                        className="primary-button w-fit disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {reanalyzing ? 'Re-analyzing...' : 'Analyze this resume now'}
+                                    </button>
+                                )}
+                                <Link to="/upload" className="text-blue-600 hover:underline self-center">
+                                    Or upload a new one
+                                </Link>
                             </div>
                         </div>
                     ) : (
