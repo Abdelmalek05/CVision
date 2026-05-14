@@ -18,7 +18,7 @@ interface StoredResume {
 }
 
 export const meta = () => ([
-    { title: 'Resumind | Review ' },
+    { title: 'CVision | Review ' },
     { name: 'description', content: 'Detailed overview of your resume' },
 ])
 
