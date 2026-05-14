@@ -1,4 +1,4 @@
-# AI Resume Analyzer
+# CVision
 
 An intelligent web application that helps users analyze and improve their resumes using AI. Built with real-time feedback, PDF parsing capabilities, and state-of-the-art UI.
 
@@ -65,10 +65,10 @@ This application includes a `Dockerfile` for easy containerization.
 
 ```bash
 # Build the Docker image
-docker build -t ai-resume-analyzer .
+docker build -t cvision .
 
 # Run the container
-docker run -p 3000:3000 ai-resume-analyzer
+docker run -p 3000:3000 cvision
 ```
 
 ## Project Structure
