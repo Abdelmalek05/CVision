@@ -268,7 +268,12 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       setError("Puter.js not available");
       return;
     }
-    return puter.fs.delete(path);
+    try {
+      return await puter.fs.delete(path);
+    } catch (err: any) {
+      if (err?.code === "subject_does_not_exist") return;
+      throw err;
+    }
   };
 
   const chat = async (

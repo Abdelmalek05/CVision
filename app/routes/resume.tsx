@@ -71,8 +71,6 @@ const Resume = () => {
                         return;
                     }
 
-                    console.log(`[resume] attempt ${attempt + 1}: feedback failed to normalize. Raw data.feedback:`, data.feedback);
-
                     // If analysis isn't ready yet, wait and retry
                     await new Promise((r) => setTimeout(r, attemptDelayMs));
                 }
