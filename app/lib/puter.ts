@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { FEEDBACK_MODEL } from "../../constants";
 
 declare global {
   interface Window {
@@ -101,19 +102,11 @@ const getPuter = (): typeof window.puter | null =>
 
 export const usePuterStore = create<PuterStore>((set, get) => {
   const setError = (msg: string) => {
-    set({
+    set((s) => ({
       error: msg,
       isLoading: false,
-      auth: {
-        user: null,
-        isAuthenticated: false,
-        signIn: get().auth.signIn,
-        signOut: get().auth.signOut,
-        refreshUser: get().auth.refreshUser,
-        checkAuthStatus: get().auth.checkAuthStatus,
-        getUser: get().auth.getUser,
-      },
-    });
+      auth: { ...s.auth, user: null, isAuthenticated: false },
+    }));
   };
 
   const checkAuthStatus = async (): Promise<boolean> => {
@@ -129,32 +122,16 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       const isSignedIn = await puter.auth.isSignedIn();
       if (isSignedIn) {
         const user = await puter.auth.getUser();
-        set({
-          auth: {
-            user,
-            isAuthenticated: true,
-            signIn: get().auth.signIn,
-            signOut: get().auth.signOut,
-            refreshUser: get().auth.refreshUser,
-            checkAuthStatus: get().auth.checkAuthStatus,
-            getUser: () => user,
-          },
+        set((s) => ({
+          auth: { ...s.auth, user, isAuthenticated: true },
           isLoading: false,
-        });
+        }));
         return true;
       } else {
-        set({
-          auth: {
-            user: null,
-            isAuthenticated: false,
-            signIn: get().auth.signIn,
-            signOut: get().auth.signOut,
-            refreshUser: get().auth.refreshUser,
-            checkAuthStatus: get().auth.checkAuthStatus,
-            getUser: () => null,
-          },
+        set((s) => ({
+          auth: { ...s.auth, user: null, isAuthenticated: false },
           isLoading: false,
-        });
+        }));
         return false;
       }
     } catch (err) {
@@ -194,18 +171,10 @@ export const usePuterStore = create<PuterStore>((set, get) => {
 
     try {
       await puter.auth.signOut();
-      set({
-        auth: {
-          user: null,
-          isAuthenticated: false,
-          signIn: get().auth.signIn,
-          signOut: get().auth.signOut,
-          refreshUser: get().auth.refreshUser,
-          checkAuthStatus: get().auth.checkAuthStatus,
-          getUser: () => null,
-        },
+      set((s) => ({
+        auth: { ...s.auth, user: null, isAuthenticated: false },
         isLoading: false,
-      });
+      }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Sign out failed";
       setError(msg);
@@ -223,18 +192,10 @@ export const usePuterStore = create<PuterStore>((set, get) => {
 
     try {
       const user = await puter.auth.getUser();
-      set({
-        auth: {
-          user,
-          isAuthenticated: true,
-          signIn: get().auth.signIn,
-          signOut: get().auth.signOut,
-          refreshUser: get().auth.refreshUser,
-          checkAuthStatus: get().auth.checkAuthStatus,
-          getUser: () => user,
-        },
+      set((s) => ({
+        auth: { ...s.auth, user, isAuthenticated: true },
         isLoading: false,
-      });
+      }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to refresh user";
       setError(msg);
@@ -350,7 +311,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
           ],
         },
       ],
-      { model: "claude-sonnet-4" }
+      { model: FEEDBACK_MODEL }
     ) as Promise<AIResponse | undefined>;
   };
 
@@ -454,3 +415,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
     clearError: () => set({ error: null }),
   };
 });
+
+if (typeof window !== "undefined") {
+  usePuterStore.getState().init();
+}

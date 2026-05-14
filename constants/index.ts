@@ -181,6 +181,8 @@ export const resumes: Resume[] = [
   },
 ];
 
+export const FEEDBACK_MODEL = "claude-sonnet-4";
+
 export const AIResponseFormat = `
       interface Feedback {
       overallScore: number; //max 100
