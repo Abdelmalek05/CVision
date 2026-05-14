@@ -72,6 +72,16 @@ export const normalizeFeedback = (value: unknown): Feedback | null => {
     return hasAnyScore ? normalized : null;
 };
 
+export const extractFeedbackText = (response: any): string => {
+    const content = response?.message?.content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+        const textPart = content.find((c: any) => typeof c?.text === "string");
+        return textPart?.text ?? "";
+    }
+    return "";
+};
+
 const extractJsonString = (raw: string): string => {
     let s = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
     const firstBrace = s.indexOf("{");

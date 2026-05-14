@@ -5,7 +5,7 @@ import {usePuterStore} from "~/lib/puter";
 import {useNavigate} from "react-router";
 import {convertPdfToImage} from "~/lib/pdf2img";
 import {generateUUID} from "~/lib/utils";
-import {parseFeedbackResponse} from "~/lib/feedback";
+import {parseFeedbackResponse, extractFeedbackText} from "~/lib/feedback";
 import {prepareInstructions} from "../../constants";
 
 const Upload = () => {
@@ -32,16 +32,6 @@ const Upload = () => {
         setStatusText('');
     };
 
-    const extractFeedbackText = (response: any): string => {
-        const content = response?.message?.content;
-        if (typeof content === 'string') return content;
-        if (Array.isArray(content)) {
-            const textPart = content.find((c: any) => typeof c?.text === 'string');
-            return textPart?.text ?? '';
-        }
-        return '';
-    };
-
     const handleAnalyze = async ({ companyName, jobTitle, jobDescription, file }: { companyName: string, jobTitle: string, jobDescription: string, file: File  }) => {
         setError(null);
         setIsProcessing(true);
@@ -58,24 +48,22 @@ const Upload = () => {
         const uploadedImage = await fs.upload([imageFile.file]);
         if(!uploadedImage) return fail('Failed to upload the resume preview image. Try again.');
 
-        setStatusText('Preparing data...');
-        const uuid = generateUUID();
-        const data: any = {
-            id: uuid,
-            resumePath: uploadedFile.path,
-            imagePath: uploadedImage.path,
-            companyName, jobTitle, jobDescription,
-            feedback: '',
-        }
-        await kv.set(`resume:${uuid}`, JSON.stringify(data));
-
         setStatusText('Analyzing your resume...');
 
         let response = await ai.feedback(
             uploadedFile.path,
             prepareInstructions({ jobTitle, jobDescription })
         );
-        if (!response) return fail('The AI analyzer did not respond. Try again in a moment.');
+
+        const cleanupUploads = async () => {
+            try { await fs.delete(uploadedFile.path); } catch {}
+            try { if (uploadedImage) await fs.delete(uploadedImage.path); } catch {}
+        };
+
+        if (!response) {
+            await cleanupUploads();
+            return fail('The AI analyzer did not respond. Try again in a moment.');
+        }
 
         let feedback = parseFeedbackResponse(extractFeedbackText(response));
 
@@ -91,11 +79,20 @@ const Upload = () => {
         }
 
         if (!feedback) {
+            await cleanupUploads();
             return fail('The AI returned a response we could not parse, even after a retry. Please try again — sometimes a fresh attempt produces cleaner output.');
         }
 
-        data.feedback = feedback;
+        const uuid = generateUUID();
+        const data = {
+            id: uuid,
+            resumePath: uploadedFile.path,
+            imagePath: uploadedImage.path,
+            companyName, jobTitle, jobDescription,
+            feedback,
+        };
         await kv.set(`resume:${uuid}`, JSON.stringify(data));
+
         setStatusText('Analysis complete, redirecting...');
         navigate(`/resume/${uuid}`);
     }
