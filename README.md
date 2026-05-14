@@ -2,7 +2,7 @@
 
 An intelligent web application that helps users analyze and improve their resumes using AI. Built with real-time feedback, PDF parsing capabilities, and state-of-the-art UI.
 
-**Live Demo**: [https://jsm-ai-resume-analyzer-82-ls5u8.puter.site/](https://jsm-ai-resume-analyzer-82-ls5u8.puter.site/)
+**Live Demo**: [https://cvision-steel.vercel.app](https://cvision-steel.vercel.app)
 
 ## Features
 
